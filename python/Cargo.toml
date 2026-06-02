@@ -1,0 +1,20 @@
+[package]
+name = "codecpod-python"
+version = "0.1.0"
+edition = "2024"
+authors = ["zhoukz <me@zhoukz.com>"]
+description = "Audio codec library backed by a statically-linked, source-built FFmpeg."
+license = "LGPL-2.1-or-later"
+repository = "https://github.com/zhoukezi/codecpod"
+homepage = "https://github.com/zhoukezi/codecpod"
+readme = "../README.md"
+publish = false
+
+[lib]
+name = "codecpod"
+crate-type = ["cdylib"]
+
+[dependencies]
+codecpod = { path = ".." }
+numpy = "0.28.0"
+pyo3 = { version = "0.28.3", features = ["extension-module", "abi3-py37"] }

@@ -1,0 +1,93 @@
+name: Build wheels
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # On main pushes stamp a unique PEP 440 dev version
+      - name: Stamp dev version for TestPyPI
+        if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/v')
+        run: |
+          base=$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = "([^"]+)"/\1/')
+          dev="${base}.dev$(date -u +%Y%m%d%H%M%S)"
+          sed -i -E "s/^version = \"[^\"]+\"/version = \"${dev}\"/" pyproject.toml
+          echo "Stamped version: ${dev}"
+
+      - name: Build manylinux wheels
+        uses: messense/maturin-action@v1
+        with:
+          target: x86_64
+          manylinux: "2_28"
+          args: --release --sdist --out dist -i python3.9 python3.13t python3.14t
+          before-script-linux: |
+            dnf install -y nasm clang clang-libs
+            export LIBCLANG_PATH="$(dirname "$(find /usr/lib64 -name 'libclang.so*' | head -1)")"
+
+      - name: Set up Python for testing
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run test suite
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest numpy
+          pip install --no-index --find-links dist codecpod
+          pytest tests/ -q
+
+      - name: Upload wheels artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-x86_64
+          path: dist/*
+
+  publish-testpypi:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/v')
+    environment: testpypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download wheels artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: wheels-linux-x86_64
+          path: dist
+
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+
+  publish-pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download wheels artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: wheels-linux-x86_64
+          path: dist
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

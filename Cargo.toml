@@ -1,0 +1,46 @@
+[workspace]
+members = ["python"]
+
+[package]
+name = "codecpod"
+version = "0.1.0"
+edition = "2024"
+authors = ["zhoukz <me@zhoukz.com>"]
+description = "Audio codec library backed by a statically-linked, source-built FFmpeg."
+license = "LGPL-2.1-or-later"
+repository = "https://github.com/zhoukezi/codecpod"
+homepage = "https://github.com/zhoukezi/codecpod"
+readme = "README.md"
+keywords = ["audio", "codec", "ffmpeg", "encoding", "decoding"]
+categories = ["multimedia::audio", "api-bindings"]
+include = [
+    "/src",
+    "/benches",
+    "/build.rs",
+    "/wrapper.h",
+    "/README.md",
+    "/README.zh-CN.md",
+    "/LICENSE",
+    "/THIRD-PARTY-NOTICES.md",
+    "/licenses",
+]
+build = "build.rs"
+links = "codecpod-ffmpeg"
+
+[dependencies]
+thiserror = "2.0.18"
+
+[build-dependencies]
+bindgen = "0.72.1"
+flate2 = "1.1.9"
+lzma-rs = "0.3.0"
+sha2 = "0.11.0"
+tar = "0.4.46"
+ureq = "3.3.0"
+
+[dev-dependencies]
+criterion = { version = "0.8.2", features = ["html_reports"] }
+
+[[bench]]
+name = "codec"
+harness = false

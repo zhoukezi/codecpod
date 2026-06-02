@@ -1,0 +1,36 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "codecpod"
+version = "0.1.0"
+description = "Audio codec library backed by a statically-linked, source-built FFmpeg."
+readme = "README.md"
+requires-python = ">=3.7"
+license = "LGPL-2.1-or-later"
+license-files = ["LICENSE", "THIRD-PARTY-NOTICES.md", "licenses/**/*"]
+authors = [{ name = "zhoukz", email = "me@zhoukz.com" }]
+keywords = ["audio", "codec", "ffmpeg", "encoding", "decoding"]
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Sound/Audio",
+]
+dependencies = ["numpy>=1.21"]
+
+[project.urls]
+Homepage = "https://github.com/zhoukezi/codecpod"
+Repository = "https://github.com/zhoukezi/codecpod"
+
+[tool.maturin]
+module-name = "codecpod"
+features = ["pyo3/extension-module"]
+manifest-path = "python/Cargo.toml"
+include = ["codecpod.pyi"]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.4.4",
+    "pytest-benchmark>=4.0.0",
+]
