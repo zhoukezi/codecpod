@@ -83,7 +83,7 @@ unsafe extern "C" fn read_seek(opaque: *mut c_void, offset: i64, whence: c_int) 
                 cur.pos = target as usize;
                 target
             }
-            None => sys::AVERROR(sys::EINVAL) as i64,
+            None => sys::AVERROR(libc::EINVAL) as i64,
         }
     }
 }
@@ -195,7 +195,7 @@ unsafe extern "C" fn write_seek(opaque: *mut c_void, offset: i64, whence: c_int)
                 sink.pos = target as usize;
                 target
             }
-            None => sys::AVERROR(sys::EINVAL) as i64,
+            None => sys::AVERROR(libc::EINVAL) as i64,
         }
     }
 }

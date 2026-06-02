@@ -787,12 +787,12 @@ unsafe fn send_frame_and_drain(
     // uphold their type invariants. frame may be NULL (flush mode).
     unsafe {
         let send = sys::avcodec_send_frame(codec_ctx.0.as_ptr(), frame);
-        if send < 0 && send != sys::AVERROR(sys::EAGAIN) {
+        if send < 0 && send != sys::AVERROR(libc::EAGAIN) {
             return Err(Error::SendFrame(FFmpegError(send)));
         }
         loop {
             let r = sys::avcodec_receive_packet(codec_ctx.0.as_ptr(), pkt.0.as_ptr());
-            if r == sys::AVERROR(sys::EAGAIN) || r == sys::AVERROR_EOF {
+            if r == sys::AVERROR(libc::EAGAIN) || r == sys::AVERROR_EOF {
                 break;
             }
             if r < 0 {

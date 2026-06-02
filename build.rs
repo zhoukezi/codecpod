@@ -546,8 +546,11 @@ fn emit_link_flags(ffmpeg_build: &Path, deps_prefix: &Path) {
         println!("cargo:rustc-link-lib=static={lib}");
     }
 
-    println!("cargo:rustc-link-lib=m");
-    println!("cargo:rustc-link-lib=pthread");
+    let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    if target_os != "macos" {
+        println!("cargo:rustc-link-lib=m");
+        println!("cargo:rustc-link-lib=pthread");
+    }
 }
 
 fn run_bindgen(src: &Path, build: &Path) {
@@ -579,6 +582,20 @@ fn run_bindgen(src: &Path, build: &Path) {
         .expect("failed to write bindgen output");
 }
 
+/// lame / libogg / libvorbis carry a Darwin branch in their configure script that injects the
+/// obsolete `-force_cpusubtype_ALL` linker flag, which modern macOS ld rejects. Strip it before
+/// configuring. Idempotent: a no-op when the flag is absent.
+fn strip_obsolete_darwin_ldflag(src: &Path) {
+    let configure = src.join("configure");
+    let Ok(content) = fs::read_to_string(&configure) else {
+        return;
+    };
+    if content.contains("-force_cpusubtype_ALL") {
+        fs::write(&configure, content.replace("-force_cpusubtype_ALL", ""))
+            .expect("patch configure to drop -force_cpusubtype_ALL");
+    }
+}
+
 fn main() {
     let out = out_dir();
     let deps_prefix = out.join("deps");
@@ -588,6 +605,8 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=wrapper.h");
     println!("cargo:rerun-if-env-changed=CODECPOD_VENDOR_DIR");
+
+    let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
 
     let ffmpeg_src = ensure_source(&out, FFMPEG_SUBDIR, FFMPEG_URL, FFMPEG_SHA256);
 
@@ -603,6 +622,9 @@ fn main() {
         let configure_args: Vec<String> =
             dep.configure_args.iter().map(|s| s.to_string()).collect();
         let dep_src = ensure_source(&out, dep.subdir, dep.url, dep.sha256);
+        if target_os == "macos" {
+            strip_obsolete_darwin_ldflag(&dep_src);
+        }
         run_autotools(
             &dep_src,
             &third_party_build.join(dep.build_name),

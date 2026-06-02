@@ -18,8 +18,8 @@ hassle of pre-installed dependencies. Provides both a Rust API and Python bindin
 pip install codecpod
 ```
 
-Pre-built wheels are published to PyPI for **Linux x86_64 only**, which is currently the
-only supported platform.
+Pre-built wheels are published to PyPI for **Linux x86_64** and **macOS** (Apple Silicon
+and Intel).
 
 ## Building from source
 

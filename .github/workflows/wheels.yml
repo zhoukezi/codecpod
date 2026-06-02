@@ -12,25 +12,59 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    name: Build (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            runner: ubuntu-latest
+            target: x86_64
+            manylinux: "2_28"
+            sdist: true
+          - name: macos-arm64
+            runner: macos-14
+            target: aarch64-apple-darwin
+            deployment_target: "11.0"
+          - name: macos-x86_64
+            runner: macos-15-intel
+            target: x86_64-apple-darwin
+            deployment_target: "10.13"
+
     steps:
       - uses: actions/checkout@v6
 
-      # On main pushes stamp a unique PEP 440 dev version
+      # On main pushes stamp a unique PEP 440 dev version from HEAD's committer date (UTC).
       - name: Stamp dev version for TestPyPI
         if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/v')
+        shell: bash
         run: |
           base=$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = "([^"]+)"/\1/')
-          dev="${base}.dev$(date -u +%Y%m%d%H%M%S)"
-          sed -i -E "s/^version = \"[^\"]+\"/version = \"${dev}\"/" pyproject.toml
+          dev="${base}.dev$(TZ=UTC0 git show -s --date=format-local:%Y%m%d%H%M%S --format=%cd HEAD)"
+          python3 - "$dev" <<'PY'
+          import re, sys, pathlib
+          p = pathlib.Path("pyproject.toml")
+          s = p.read_text()
+          s = re.sub(r'(?m)^(version\s*=\s*")[^"]+(")', r'\g<1>' + sys.argv[1] + r'\g<2>', s, count=1)
+          p.write_text(s)
+          PY
           echo "Stamped version: ${dev}"
 
-      - name: Build manylinux wheels
+      - name: Install build deps (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          command -v nasm >/dev/null || brew install nasm
+          command -v pkg-config >/dev/null || brew install pkg-config
+
+      - name: Build wheels
         uses: messense/maturin-action@v1
+        env:
+          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.deployment_target }}
         with:
-          target: x86_64
-          manylinux: "2_28"
-          args: --release --sdist --out dist -i python3.9 python3.13t python3.14t
+          target: ${{ matrix.target }}
+          manylinux: ${{ runner.os == 'Linux' && matrix.manylinux || '' }}
+          args: --release ${{ matrix.sdist && '--sdist' || '' }} --out dist -i python3.9 python3.13t python3.14t
           before-script-linux: |
             dnf install -y nasm clang clang-libs
             export LIBCLANG_PATH="$(dirname "$(find /usr/lib64 -name 'libclang.so*' | head -1)")"
@@ -50,7 +84,7 @@ jobs:
       - name: Upload wheels artifact
         uses: actions/upload-artifact@v7
         with:
-          name: wheels-linux-x86_64
+          name: wheels-${{ matrix.name }}
           path: dist/*
 
   publish-testpypi:
@@ -62,11 +96,12 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - name: Download wheels artifact
+      - name: Download wheels artifacts
         uses: actions/download-artifact@v8
         with:
-          name: wheels-linux-x86_64
+          pattern: wheels-*
           path: dist
+          merge-multiple: true
 
       - name: Publish to TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -83,11 +118,12 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - name: Download wheels artifact
+      - name: Download wheels artifacts
         uses: actions/download-artifact@v8
         with:
-          name: wheels-linux-x86_64
+          pattern: wheels-*
           path: dist
+          merge-multiple: true
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

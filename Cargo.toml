@@ -28,6 +28,7 @@ build = "build.rs"
 links = "codecpod-ffmpeg"
 
 [dependencies]
+libc = "0.2.186"
 thiserror = "2.0.18"
 
 [build-dependencies]

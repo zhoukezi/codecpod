@@ -204,6 +204,7 @@ dependencies = [
  "bindgen",
  "criterion",
  "flate2",
+ "libc",
  "lzma-rs",
  "sha2",
  "tar",

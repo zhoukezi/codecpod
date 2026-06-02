@@ -21,9 +21,5 @@ const fn fferrtag(a: u8, b: u8, c: u8, d: u8) -> i32 {
 pub const AVERROR_EOF: i32 = fferrtag(b'E', b'O', b'F', b' ');
 pub const AVERROR_INVALIDDATA: i32 = fferrtag(b'I', b'N', b'D', b'A');
 
-pub const EAGAIN: i32 = 11;
-pub const ENOMEM: i32 = 12;
-pub const EINVAL: i32 = 22;
-
 pub const AV_NOPTS_VALUE: i64 = i64::MIN;
 pub const AVSEEK_FLAG_BACKWARD: i32 = 1;

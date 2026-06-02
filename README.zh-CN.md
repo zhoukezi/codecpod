@@ -17,7 +17,7 @@
 pip install codecpod
 ```
 
-PyPI 上仅提供 **Linux x86_64** 的预编译 wheel，目前也只支持这一个平台。
+PyPI 上提供 **Linux x86_64** 与 **macOS**（Apple Silicon 与 Intel）的预编译 wheel。
 
 ## 从源码构建
 

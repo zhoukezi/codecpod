@@ -639,7 +639,7 @@ fn decode<T: Sample>(ctx: DecodeCtx<'_>) -> Result<AudioBuffer, Error> {
                 } else {
                     let send = sys::avcodec_send_packet(codec_ctx.0.as_ptr(), pkt.0.as_ptr());
                     sys::av_packet_unref(pkt.0.as_ptr());
-                    if send < 0 && send != sys::AVERROR(sys::EAGAIN) {
+                    if send < 0 && send != sys::AVERROR(libc::EAGAIN) {
                         return Err(Error::SendPacket(FFmpegError(send)));
                     }
                 }
@@ -647,7 +647,7 @@ fn decode<T: Sample>(ctx: DecodeCtx<'_>) -> Result<AudioBuffer, Error> {
 
             loop {
                 let recv = sys::avcodec_receive_frame(codec_ctx.0.as_ptr(), frame.0.as_ptr());
-                if recv == sys::AVERROR(sys::EAGAIN) {
+                if recv == sys::AVERROR(libc::EAGAIN) {
                     break;
                 }
                 if recv == sys::AVERROR_EOF {
