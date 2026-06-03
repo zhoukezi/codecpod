@@ -17,7 +17,7 @@
 pip install codecpod
 ```
 
-PyPI 上提供 **Linux x86_64** 与 **macOS**（Apple Silicon 与 Intel）的预编译 wheel。
+PyPI 上提供 **Linux x86_64**、**macOS**（Apple Silicon 与 Intel）与 **Windows x86_64** 的预编译 wheel。
 
 ## 从源码构建
 
@@ -26,6 +26,10 @@ PyPI 上提供 **Linux x86_64** 与 **macOS**（Apple Silicon 与 Intel）的预
 - Rust 工具链，建议使用最新 stable
 - `nasm`、`clang` 与 `libclang`
 - `make`、`pkg-config`
+
+在 Windows 上，FFmpeg 源码通过 autotools 构建，因此工具链必须是 GNU（MinGW-w64）而非 MSVC：
+请在 [MSYS2](https://www.msys2.org/) 的 UCRT64 shell 中构建，并以 `x86_64-pc-windows-gnullvm`
+为目标。
 
 构建并安装到当前环境:
 

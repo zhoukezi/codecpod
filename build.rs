@@ -467,8 +467,34 @@ fn out_dir() -> PathBuf {
     PathBuf::from(env::var("OUT_DIR").unwrap())
 }
 
+fn target_is_windows() -> bool {
+    env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows")
+}
+
+fn to_mingw_path(p: &Path) -> String {
+    let output = Command::new("cygpath")
+        .arg("-m")
+        .arg(p)
+        .output()
+        .expect("spawn cygpath");
+    assert!(
+        output.status.success(),
+        "cygpath -m failed for {}",
+        p.display()
+    );
+    String::from_utf8(output.stdout)
+        .expect("cygpath output is utf8")
+        .trim()
+        .to_string()
+}
+
 fn pkgconfig_path(prefix: &Path) -> OsString {
-    prefix.join("lib").join("pkgconfig").into_os_string()
+    let dir = prefix.join("lib").join("pkgconfig");
+    if target_is_windows() {
+        OsString::from(to_mingw_path(&dir))
+    } else {
+        dir.into_os_string()
+    }
 }
 
 fn run_autotools(
@@ -480,13 +506,34 @@ fn run_autotools(
     install: bool,
     env_vars: &[(&str, OsString)],
 ) {
-    fs::create_dir_all(build).expect("create autotools build dir");
+    let windows = target_is_windows();
 
-    let mut configure = Command::new(src.join("configure"));
+    let build_dir = if windows { src } else { build };
+    if !windows {
+        fs::create_dir_all(build).expect("create autotools build dir");
+    }
+
+    let mut configure = if windows {
+        // Relative "configure" with cwd == srcdir makes autoconf set srcdir to ".", so no absolute
+        // path is ever handed to the MinGW tools.
+        let mut c = Command::new("sh");
+        c.arg("configure");
+        c
+    } else {
+        Command::new(src.join("configure"))
+    };
+    let prefix_arg = if windows {
+        to_mingw_path(prefix)
+    } else {
+        prefix.display().to_string()
+    };
     configure
-        .arg(format!("--prefix={}", prefix.display()))
+        .arg(format!("--prefix={prefix_arg}"))
         .args(configure_args)
-        .current_dir(build);
+        .current_dir(build_dir);
+    if windows {
+        configure.env("MSYS2_ARG_CONV_EXCL", "*");
+    }
     for (k, v) in env_vars {
         configure.env(k, v);
     }
@@ -501,13 +548,15 @@ fn run_autotools(
         .map(|n| n.get())
         .unwrap_or(1);
 
-    let status = Command::new("make")
-        .arg(format!("-j{nproc}"))
+    let mut make = Command::new("make");
+    make.arg(format!("-j{nproc}"))
         .args(AUTOTOOLS_REGEN_NOOPS)
         .args(make_targets)
-        .current_dir(build)
-        .status()
-        .expect("spawn make");
+        .current_dir(build_dir);
+    if windows {
+        make.env("MSYS2_ARG_CONV_EXCL", "*");
+    }
+    let status = make.status().expect("spawn make");
     assert!(
         status.success(),
         "make for {} exited with {status}",
@@ -515,12 +564,15 @@ fn run_autotools(
     );
 
     if install {
-        let status = Command::new("make")
+        let mut make_install = Command::new("make");
+        make_install
             .arg("install")
             .args(AUTOTOOLS_REGEN_NOOPS)
-            .current_dir(build)
-            .status()
-            .expect("spawn make install");
+            .current_dir(build_dir);
+        if windows {
+            make_install.env("MSYS2_ARG_CONV_EXCL", "*");
+        }
+        let status = make_install.status().expect("spawn make install");
         assert!(
             status.success(),
             "make install for {} exited with {status}",
@@ -547,17 +599,27 @@ fn emit_link_flags(ffmpeg_build: &Path, deps_prefix: &Path) {
     }
 
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
-    if target_os != "macos" {
-        println!("cargo:rustc-link-lib=m");
-        println!("cargo:rustc-link-lib=pthread");
+    match target_os.as_str() {
+        "macos" => {}
+        "windows" => println!("cargo:rustc-link-lib=dylib=bcrypt"),
+        _ => {
+            println!("cargo:rustc-link-lib=m");
+            println!("cargo:rustc-link-lib=pthread");
+        }
     }
 }
 
 fn run_bindgen(src: &Path, build: &Path) {
-    let bindings = bindgen::Builder::default()
+    let mut builder = bindgen::Builder::default()
         .header("wrapper.h")
         .clang_arg(format!("-I{}", src.display()))
-        .clang_arg(format!("-I{}", build.display()))
+        .clang_arg(format!("-I{}", build.display()));
+    if target_is_windows() {
+        // bindgen feeds clang the Rust target triple verbatim, but clang doesn't understand the
+        // `gnullvm` environment.
+        builder = builder.clang_arg("--target=x86_64-pc-windows-gnu");
+    }
+    let bindings = builder
         .allowlist_function("av_.*")
         .allowlist_function("avformat_.*")
         .allowlist_function("avcodec_.*")
@@ -596,6 +658,26 @@ fn strip_obsolete_darwin_ldflag(src: &Path) {
     }
 }
 
+/// lame 3.100 enables its SSE path on x86 whenever <xmmintrin.h> compiles, but under MinGW the noinst
+/// vector archive (liblamevectorroutines.a) that holds `init_xrpow_core_sse` is never produced, so
+/// libmp3lame links with that symbol undefined. The probe is a hand-written AC_COMPILE_IFELSE that
+/// overwrites any preset cache var, so patch the generated configure to force it off. Idempotent.
+fn disable_lame_sse_intrinsics(src: &Path) {
+    let configure = src.join("configure");
+    let Ok(content) = fs::read_to_string(&configure) else {
+        return;
+    };
+    let patched = content
+        .replace("$as_echo \"#define HAVE_XMMINTRIN_H 1\" >>confdefs.h", "")
+        .replace(
+            "ac_cv_header_xmmintrin_h=yes",
+            "ac_cv_header_xmmintrin_h=no",
+        );
+    if patched != content {
+        fs::write(&configure, patched).expect("patch lame configure to disable SSE intrinsics");
+    }
+}
+
 fn main() {
     let out = out_dir();
     let deps_prefix = out.join("deps");
@@ -625,6 +707,9 @@ fn main() {
         if target_os == "macos" {
             strip_obsolete_darwin_ldflag(&dep_src);
         }
+        if target_os == "windows" && dep.build_name == "lame" {
+            disable_lame_sse_intrinsics(&dep_src);
+        }
         run_autotools(
             &dep_src,
             &third_party_build.join(dep.build_name),
@@ -645,19 +730,30 @@ fn main() {
     // uses check_lib (a compile+link probe) for libmp3lame, so the include / lib directories of
     // deps_prefix must be explicitly fed to FFmpeg's own compiler detection — otherwise configure
     // fails to find lame/lame.h and -lmp3lame, reporting "libmp3lame not found".
-    ffmpeg_args.push(format!(
-        "--extra-cflags=-I{}",
-        deps_prefix.join("include").display()
-    ));
-    ffmpeg_args.push(format!(
-        "--extra-ldflags=-L{}",
-        deps_prefix.join("lib").display()
-    ));
+    let (inc_dir, lib_dir) = if target_os == "windows" {
+        (
+            to_mingw_path(&deps_prefix.join("include")),
+            to_mingw_path(&deps_prefix.join("lib")),
+        )
+    } else {
+        (
+            deps_prefix.join("include").display().to_string(),
+            deps_prefix.join("lib").display().to_string(),
+        )
+    };
+    ffmpeg_args.push(format!("--extra-cflags=-I{inc_dir}"));
+    ffmpeg_args.push(format!("--extra-ldflags=-L{lib_dir}"));
     ffmpeg_args.push(format!("--enable-demuxer={}", ENABLED_DEMUXERS.join(",")));
     ffmpeg_args.push(format!("--enable-parser={}", ENABLED_PARSERS.join(",")));
     ffmpeg_args.push(format!("--enable-decoder={}", ENABLED_DECODERS.join(",")));
     ffmpeg_args.push(format!("--enable-muxer={}", ENABLED_MUXERS.join(",")));
     ffmpeg_args.push(format!("--enable-encoder={}", ENABLED_ENCODERS.join(",")));
+    if target_os == "windows" {
+        ffmpeg_args.push(format!(
+            "--tempprefix={}/ffconf",
+            to_mingw_path(&ffmpeg_src)
+        ));
+    }
 
     let ffmpeg_targets: Vec<String> = FFMPEG_LIBS
         .iter()
@@ -674,6 +770,11 @@ fn main() {
         &[("PKG_CONFIG_PATH", pkgconfig_path(&deps_prefix))],
     );
 
-    emit_link_flags(&ffmpeg_build, &deps_prefix);
-    run_bindgen(&ffmpeg_src, &ffmpeg_build);
+    let ffmpeg_out = if target_os == "windows" {
+        &ffmpeg_src
+    } else {
+        &ffmpeg_build
+    };
+    emit_link_flags(ffmpeg_out, &deps_prefix);
+    run_bindgen(&ffmpeg_src, ffmpeg_out);
 }

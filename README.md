@@ -18,8 +18,8 @@ hassle of pre-installed dependencies. Provides both a Rust API and Python bindin
 pip install codecpod
 ```
 
-Pre-built wheels are published to PyPI for **Linux x86_64** and **macOS** (Apple Silicon
-and Intel).
+Pre-built wheels are published to PyPI for **Linux x86_64**, **macOS** (Apple Silicon
+and Intel), and **Windows x86_64**.
 
 ## Building from source
 
@@ -28,6 +28,10 @@ Building requires the following toolchain:
 - A Rust toolchain; the latest stable is recommended.
 - `nasm`, `clang`, and `libclang`.
 - `make`, `pkg-config`.
+
+On Windows the FFmpeg sources are built with autotools, so the toolchain must be the GNU
+(MinGW-w64) one rather than MSVC: build inside an [MSYS2](https://www.msys2.org/) UCRT64
+shell and target `x86_64-pc-windows-gnullvm`.
 
 Build and install into the current environment:
 
