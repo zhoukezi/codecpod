@@ -184,6 +184,16 @@ jobs:
       contents: read
       id-token: write
     steps:
+      - uses: actions/checkout@v6
+
+      - name: Verify version matches tag
+        run: |
+          version=$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = "([^"]+)"/\1/')
+          if [ "v${version}" != "${GITHUB_REF_NAME}" ]; then
+            echo "pyproject.toml version (v${version}) does not match tag (${GITHUB_REF_NAME})" >&2
+            exit 1
+          fi
+
       - name: Download wheels artifacts
         uses: actions/download-artifact@v8
         with:
