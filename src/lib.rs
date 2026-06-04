@@ -36,12 +36,18 @@ use std::path::Path;
 
 pub use error::{Error, FFmpegError};
 
-mod avio;
-mod encoder;
 mod error;
-mod loader;
 mod sys;
+
+#[cfg(not(docsrs))]
+mod avio;
+#[cfg(not(docsrs))]
 mod util;
+
+#[cfg_attr(docsrs, path = "encoder_stub.rs")]
+mod encoder;
+#[cfg_attr(docsrs, path = "loader_stub.rs")]
+mod loader;
 
 /// Decoded audio samples.
 #[derive(Debug, Clone)]

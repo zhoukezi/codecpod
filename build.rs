@@ -679,6 +679,12 @@ fn disable_lame_sse_intrinsics(src: &Path) {
 }
 
 fn main() {
+    println!("cargo:rerun-if-env-changed=DOCS_RS");
+
+    if env::var_os("DOCS_RS").is_some() {
+        return;
+    }
+
     let out = out_dir();
     let deps_prefix = out.join("deps");
     let third_party_build = out.join("third-party-build");
