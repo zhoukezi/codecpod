@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "codecpod"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Audio codec library backed by a statically-linked, source-built FFmpeg."
 readme = "README.md"
 requires-python = ">=3.7"

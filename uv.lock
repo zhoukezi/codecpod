@@ -11,7 +11,6 @@ resolution-markers = [
 
 [[package]]
 name = "codecpod"
-version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "numpy", version = "1.21.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.8'" },
