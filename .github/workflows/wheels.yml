@@ -35,22 +35,6 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      # On main pushes stamp a unique PEP 440 dev version from HEAD's committer date (UTC).
-      - name: Stamp dev version for TestPyPI
-        if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/v')
-        shell: bash
-        run: |
-          base=$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = "([^"]+)"/\1/')
-          dev="${base}.dev$(TZ=UTC0 git show -s --date=format-local:%Y%m%d%H%M%S --format=%cd HEAD)"
-          python3 - "$dev" <<'PY'
-          import re, sys, pathlib
-          p = pathlib.Path("pyproject.toml")
-          s = p.read_text()
-          s = re.sub(r'(?m)^(version\s*=\s*")[^"]+(")', r'\g<1>' + sys.argv[1] + r'\g<2>', s, count=1)
-          p.write_text(s)
-          PY
-          echo "Stamped version: ${dev}"
-
       - name: Install build deps (macOS)
         if: runner.os == 'macOS'
         run: |
@@ -119,20 +103,6 @@ jobs:
             mingw-w64-ucrt-x86_64-nasm
             make autoconf automake libtool diffutils
 
-      - name: Stamp dev version for TestPyPI
-        if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/v')
-        run: |
-          base=$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = "([^"]+)"/\1/')
-          dev="${base}.dev$(TZ=UTC0 git show -s --date=format-local:%Y%m%d%H%M%S --format=%cd HEAD)"
-          python - "$dev" <<'PY'
-          import re, sys, pathlib
-          p = pathlib.Path("pyproject.toml")
-          s = p.read_text()
-          s = re.sub(r'(?m)^(version\s*=\s*")[^"]+(")', r'\g<1>' + sys.argv[1] + r'\g<2>', s, count=1)
-          p.write_text(s)
-          PY
-          echo "Stamped version: ${dev}"
-
       - name: Build wheel
         run: |
           export PATH="$(cygpath "$USERPROFILE")/.cargo/bin:$PATH"
@@ -153,28 +123,6 @@ jobs:
           name: wheels-windows-x86_64
           path: dist/*
 
-  publish-testpypi:
-    needs: [build, build-windows]
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/v')
-    environment: testpypi
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - name: Download wheels artifacts
-        uses: actions/download-artifact@v8
-        with:
-          pattern: wheels-*
-          path: dist
-          merge-multiple: true
-
-      - name: Publish to TestPyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://test.pypi.org/legacy/
-          skip-existing: true
-
   publish-pypi:
     needs: [build, build-windows]
     runs-on: ubuntu-latest
@@ -188,9 +136,9 @@ jobs:
 
       - name: Verify version matches tag
         run: |
-          version=$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = "([^"]+)"/\1/')
+          version=$(grep -m1 '^version = ' python/Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')
           if [ "v${version}" != "${GITHUB_REF_NAME}" ]; then
-            echo "pyproject.toml version (v${version}) does not match tag (${GITHUB_REF_NAME})" >&2
+            echo "python/Cargo.toml version (v${version}) does not match tag (${GITHUB_REF_NAME})" >&2
             exit 1
           fi
 
