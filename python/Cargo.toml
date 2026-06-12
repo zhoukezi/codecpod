@@ -1,6 +1,6 @@
 [package]
 name = "codecpod-python"
-version = "0.1.1-rc3"
+version = "0.1.1"
 edition = "2024"
 authors = ["zhoukz <me@zhoukz.com>"]
 description = "Audio codec library backed by a statically-linked, source-built FFmpeg."
