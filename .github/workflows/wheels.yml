@@ -42,7 +42,7 @@ jobs:
           command -v pkg-config >/dev/null || brew install pkg-config
 
       - name: Build wheels
-        uses: messense/maturin-action@v1
+        uses: PyO3/maturin-action@v1
         env:
           MACOSX_DEPLOYMENT_TARGET: ${{ matrix.deployment_target }}
         with:
