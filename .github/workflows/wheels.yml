@@ -48,7 +48,7 @@ jobs:
         with:
           target: ${{ matrix.target }}
           manylinux: ${{ runner.os == 'Linux' && matrix.manylinux || '' }}
-          args: --release ${{ matrix.sdist && '--sdist' || '' }} --out dist -i python3.9 python3.13t python3.14t
+          args: --release ${{ matrix.sdist && '--sdist' || '' }} --out dist -i python3.9 python3.14t
           before-script-linux: |
             dnf install -y nasm clang clang-libs
             export LIBCLANG_PATH="$(dirname "$(find /usr/lib64 -name 'libclang.so*' | head -1)")"
