@@ -3,7 +3,7 @@ members = ["python"]
 
 [package]
 name = "codecpod"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2024"
 authors = ["zhoukz <me@zhoukz.com>"]
 description = "Audio codec library backed by a statically-linked, source-built FFmpeg."
