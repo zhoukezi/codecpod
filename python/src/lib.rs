@@ -647,11 +647,14 @@ fn pyarray_to_samples(
 /// Raises:
 ///     CodecpodError: If the source cannot be opened or contains no audio stream.
 #[pyfunction]
-fn info(path: &Bound<'_, PyAny>) -> PyResult<PyAudioInfo> {
+fn info(py: Python<'_>, path: &Bound<'_, PyAny>) -> PyResult<PyAudioInfo> {
     let i = if let Ok(bytes) = path.cast::<PyBytes>() {
-        ::codecpod::info_bytes(bytes.as_bytes()).map_err(map_err)?
+        let bytes = bytes.as_bytes();
+        py.detach(|| ::codecpod::info_bytes(bytes))
+            .map_err(map_err)?
     } else {
-        ::codecpod::info(path.extract::<PathBuf>()?).map_err(map_err)?
+        let path = path.extract::<PathBuf>()?;
+        py.detach(|| ::codecpod::info(path)).map_err(map_err)?
     };
     Ok(PyAudioInfo {
         sample_rate: i.sample_rate,
@@ -721,9 +724,13 @@ fn load<'py>(
         channels_first,
     };
     let buf = if let Ok(bytes) = path.cast::<PyBytes>() {
-        ::codecpod::load_bytes(bytes.as_bytes(), &opts).map_err(map_err)?
+        let bytes = bytes.as_bytes();
+        py.detach(|| ::codecpod::load_bytes(bytes, &opts))
+            .map_err(map_err)?
     } else {
-        ::codecpod::load(path.extract::<PathBuf>()?, &opts).map_err(map_err)?
+        let path = path.extract::<PathBuf>()?;
+        py.detach(|| ::codecpod::load(path, &opts))
+            .map_err(map_err)?
     };
 
     let out_rate = buf.sample_rate;
@@ -782,7 +789,9 @@ fn load<'py>(
     mono=false,
     channels_first=None,
 ))]
+#[allow(clippy::too_many_arguments)]
 fn save(
+    py: Python<'_>,
     path: PathBuf,
     data: &Bound<'_, PyAny>,
     sample_rate: Option<u32>,
@@ -797,7 +806,8 @@ fn save(
         sample_rate: resample_to,
         mono,
     };
-    ::codecpod::save(path, &buf, &opts).map_err(map_err)
+    py.detach(|| ::codecpod::save(path, &buf, &opts))
+        .map_err(map_err)
 }
 
 /// Encode audio samples and return them as ``bytes``.
@@ -850,7 +860,9 @@ fn save_bytes<'py>(
         sample_rate: resample_to,
         mono,
     };
-    let bytes = ::codecpod::save_bytes(&buf, &opts).map_err(map_err)?;
+    let bytes = py
+        .detach(|| ::codecpod::save_bytes(&buf, &opts))
+        .map_err(map_err)?;
     Ok(PyBytes::new(py, &bytes))
 }
 
