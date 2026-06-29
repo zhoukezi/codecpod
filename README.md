@@ -1,6 +1,6 @@
 # codecpod
 
-**English** | [简体中文](README.zh-CN.md)
+**English** | [简体中文](https://github.com/zhoukezi/codecpod/blob/main/README.zh-CN.md)
 
 An audio codec library that statically links [FFmpeg](https://ffmpeg.org/), avoiding the
 hassle of pre-installed dependencies. Provides both a Rust API and Python bindings.
@@ -50,7 +50,7 @@ uvx maturin build --release
 > make sure your network connection is stable.
 >
 > If the `CODECPOD_VENDOR_DIR` environment variable is set, the build skips downloading and
-> uses the sources there directly. See [`build.rs`](build.rs) for the directory layout.
+> uses the sources there directly. See [`build.rs`](https://github.com/zhoukezi/codecpod/blob/main/build.rs) for the directory layout.
 
 ## Usage
 
@@ -85,7 +85,7 @@ codecpod.save(
 
 Copyright (C) 2026 zhoukz \<me@zhoukz.com\>
 
-This project is distributed under **LGPL-2.1-or-later**; see [`LICENSE`](LICENSE).
+This project is distributed under **LGPL-2.1-or-later**; see [`LICENSE`](https://github.com/zhoukezi/codecpod/blob/main/LICENSE).
 
 It statically links several third-party libraries; see
-[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) for details.
+[`THIRD-PARTY-NOTICES.md`](https://github.com/zhoukezi/codecpod/blob/main/THIRD-PARTY-NOTICES.md) for details.
