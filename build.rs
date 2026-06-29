@@ -6,9 +6,9 @@ use std::process::Command;
 
 const FFMPEG_LIBS: &[&str] = &["avformat", "avcodec", "swresample", "avutil"];
 
-const FFMPEG_SUBDIR: &str = "ffmpeg-8.1.1";
-const FFMPEG_URL: &str = "https://ffmpeg.org/releases/ffmpeg-8.1.1.tar.xz";
-const FFMPEG_SHA256: &str = "b6863adde98898f42602017462871b5f6333e65aec803fdd7a6308639c52edf3";
+const FFMPEG_SUBDIR: &str = "ffmpeg-8.1.2";
+const FFMPEG_URL: &str = "https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz";
+const FFMPEG_SHA256: &str = "464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c";
 
 const FFMPEG_CONFIGURE_FLAGS: &[&str] = &[
     "--disable-autodetect",
@@ -331,9 +331,9 @@ const THIRD_PARTY_DEPS: &[VendoredDep] = &[
         needs_pkgconfig: false,
     },
     VendoredDep {
-        subdir: "libogg-1.3.5",
-        url: "https://downloads.xiph.org/releases/ogg/libogg-1.3.5.tar.xz",
-        sha256: "c4d91be36fc8e54deae7575241e03f4211eb102afb3fc0775fbbc1b740016705",
+        subdir: "libogg-1.3.6",
+        url: "https://downloads.xiph.org/releases/ogg/libogg-1.3.6.tar.xz",
+        sha256: "5c8253428e181840cd20d41f3ca16557a9cc04bad4a3d04cce84808677fa1061",
         build_name: "libogg",
         configure_args: &["--disable-shared", "--enable-static", "--with-pic"],
         needs_pkgconfig: false,
@@ -354,9 +354,9 @@ const THIRD_PARTY_DEPS: &[VendoredDep] = &[
         needs_pkgconfig: true,
     },
     VendoredDep {
-        subdir: "opus-1.5.2",
-        url: "https://downloads.xiph.org/releases/opus/opus-1.5.2.tar.gz",
-        sha256: "65c1d2f78b9f2fb20082c38cbe47c951ad5839345876e46941612ee87f9a7ce1",
+        subdir: "opus-1.6.1",
+        url: "https://downloads.xiph.org/releases/opus/opus-1.6.1.tar.gz",
+        sha256: "6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1",
         build_name: "opus",
         configure_args: &[
             "--disable-shared",
