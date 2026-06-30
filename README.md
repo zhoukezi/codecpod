@@ -51,6 +51,8 @@ uvx maturin build --release
 >
 > If the `CODECPOD_VENDOR_DIR` environment variable is set, the build skips downloading and
 > uses the sources there directly. See [`build.rs`](https://github.com/zhoukezi/codecpod/blob/main/build.rs) for the directory layout.
+>
+> If the `CODECPOD_BUILD_DIR` environment variable is set, intermediate build artifacts of FFmpeg will be stored in that directory.
 
 ## Usage
 

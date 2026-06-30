@@ -369,15 +369,15 @@ const THIRD_PARTY_DEPS: &[VendoredDep] = &[
     },
 ];
 
-fn source_root(out: &Path) -> PathBuf {
+fn source_root(build: &Path) -> PathBuf {
     match env::var_os("CODECPOD_VENDOR_DIR") {
         Some(dir) => PathBuf::from(dir),
-        None => out.join("sources"),
+        None => build.join("sources"),
     }
 }
 
-fn ensure_source(out: &Path, subdir: &str, url: &str, sha256: &str) -> PathBuf {
-    let root = source_root(out);
+fn ensure_source(build: &Path, subdir: &str, url: &str, sha256: &str) -> PathBuf {
+    let root = source_root(build);
     let dest = root.join(subdir);
 
     if env::var_os("CODECPOD_VENDOR_DIR").is_some() {
@@ -463,8 +463,13 @@ fn extract(tarball: &[u8], filename: &str, dest_root: &Path) {
     }
 }
 
-fn out_dir() -> PathBuf {
-    PathBuf::from(env::var("OUT_DIR").unwrap())
+fn out_dir() -> (PathBuf, PathBuf) {
+    let persist = PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    let build = match env::var_os("CODECPOD_BUILD_DIR") {
+        Some(dir) => PathBuf::from(dir),
+        None => persist.clone(),
+    };
+    (persist, build)
 }
 
 fn target_is_windows() -> bool {
@@ -581,23 +586,37 @@ fn run_autotools(
     }
 }
 
-fn emit_link_flags(ffmpeg_build: &Path, deps_prefix: &Path) {
+fn emit_link_flags(persist: &Path, ffmpeg_out: &Path, deps_prefix: &Path) {
+    let lib_dir = persist.join("link-libs");
+    fs::create_dir_all(&lib_dir).expect("create persistent link-libs dir");
+
+    let copy = |from: &Path, name: &str| {
+        let to = lib_dir.join(name);
+        fs::copy(from, &to)
+            .unwrap_or_else(|e| panic!("persist {} -> {}: {e}", from.display(), to.display()));
+    };
+
     for lib in FFMPEG_LIBS {
-        println!(
-            "cargo:rustc-link-search=native={}",
-            ffmpeg_build.join(format!("lib{lib}")).display()
-        );
-        println!("cargo:rustc-link-lib=static={lib}");
+        let name = format!("lib{lib}.a");
+        copy(&ffmpeg_out.join(format!("lib{lib}")).join(&name), &name);
+    }
+    for lib in THIRD_PARTY_LINK_LIBS {
+        let name = format!("lib{lib}.a");
+        copy(&deps_prefix.join("lib").join(&name), &name);
     }
 
-    println!(
-        "cargo:rustc-link-search=native={}",
-        deps_prefix.join("lib").display()
-    );
+    println!("cargo:rustc-link-search=native={}", lib_dir.display());
+    for lib in FFMPEG_LIBS {
+        println!("cargo:rustc-link-lib=static={lib}");
+    }
     for lib in THIRD_PARTY_LINK_LIBS {
         println!("cargo:rustc-link-lib=static={lib}");
     }
 
+    emit_system_link_libs();
+}
+
+fn emit_system_link_libs() {
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     match target_os.as_str() {
         "macos" => {}
@@ -609,7 +628,7 @@ fn emit_link_flags(ffmpeg_build: &Path, deps_prefix: &Path) {
     }
 }
 
-fn run_bindgen(src: &Path, build: &Path) {
+fn run_bindgen(src: &Path, build: &Path, persist: &Path) {
     let mut builder = bindgen::Builder::default()
         .header("wrapper.h")
         .clang_arg(format!("-I{}", src.display()))
@@ -640,7 +659,7 @@ fn run_bindgen(src: &Path, build: &Path) {
         .generate()
         .expect("bindgen failed to generate FFmpeg bindings");
     bindings
-        .write_to_file(out_dir().join("ffmpeg.rs"))
+        .write_to_file(persist.join("ffmpeg.rs"))
         .expect("failed to write bindgen output");
 }
 
@@ -685,7 +704,7 @@ fn main() {
         return;
     }
 
-    let out = out_dir();
+    let (persist, out) = out_dir();
     let deps_prefix = out.join("deps");
     let third_party_build = out.join("third-party-build");
     let ffmpeg_build = out.join("ffmpeg-build");
@@ -693,6 +712,7 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=wrapper.h");
     println!("cargo:rerun-if-env-changed=CODECPOD_VENDOR_DIR");
+    println!("cargo:rerun-if-env-changed=CODECPOD_BUILD_DIR");
 
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
 
@@ -781,6 +801,6 @@ fn main() {
     } else {
         &ffmpeg_build
     };
-    emit_link_flags(ffmpeg_out, &deps_prefix);
-    run_bindgen(&ffmpeg_src, ffmpeg_out);
+    emit_link_flags(&persist, ffmpeg_out, &deps_prefix);
+    run_bindgen(&ffmpeg_src, ffmpeg_out, &persist);
 }

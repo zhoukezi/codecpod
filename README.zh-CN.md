@@ -46,6 +46,8 @@ uvx maturin build --release
 > 首次构建会按 `build.rs` 中固定的版本与 SHA-256 从上游下载 FFmpeg 及其依赖项的源码 tarball，耗时较长，请确保网络通畅。
 >
 > 如果设置了环境变量 `CODECPOD_VENDOR_DIR`，构建时将跳过下载直接使用其中的源码。关于目录细节，请参考 [`build.rs`](build.rs)。
+>
+> 如果设置了环境变量 `CODECPOD_BUILD_DIR`，FFmpeg 构建中间产物将存放在该目录下。
 
 ## 用法
 
