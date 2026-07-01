@@ -628,6 +628,17 @@ fn emit_system_link_libs() {
     }
 }
 
+/// Compiles the C log shim (`src/log_shim.c`), which owns every interaction with FFmpeg's
+/// `va_list`-based log callback. Needs FFmpeg's headers on the include path (`libavutil/log.h`),
+/// which live in the source tree and, for generated config, the build tree.
+fn compile_shim(src: &Path, build: &Path) {
+    cc::Build::new()
+        .file("src/log_shim.c")
+        .include(src)
+        .include(build)
+        .compile("codecpod-log-shim");
+}
+
 fn run_bindgen(src: &Path, build: &Path, persist: &Path) {
     let mut builder = bindgen::Builder::default()
         .header("wrapper.h")
@@ -711,6 +722,7 @@ fn main() {
 
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=wrapper.h");
+    println!("cargo:rerun-if-changed=src/log_shim.c");
     println!("cargo:rerun-if-env-changed=CODECPOD_VENDOR_DIR");
     println!("cargo:rerun-if-env-changed=CODECPOD_BUILD_DIR");
 
@@ -803,4 +815,5 @@ fn main() {
     };
     emit_link_flags(&persist, ffmpeg_out, &deps_prefix);
     run_bindgen(&ffmpeg_src, ffmpeg_out, &persist);
+    compile_shim(&ffmpeg_src, ffmpeg_out);
 }
