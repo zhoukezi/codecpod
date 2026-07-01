@@ -593,7 +593,7 @@ pub type LogCallback = Box<dyn Fn(&LogMessage) + Send + Sync + 'static>;
 /// Controls how FFmpeg's internal log output is handled, via [`log_set`].
 pub enum LogSetting {
     /// Route messages through FFmpeg's default stderr handler, keeping only those at or
-    /// below the given [`LogLevel`]. This is the initial behavior, with [`LogLevel::Info`].
+    /// below the given [`LogLevel`]. This is the initial behavior, with [`LogLevel::Quiet`].
     Level(LogLevel),
     /// Divert all messages to a custom callback instead of stderr. The callback receives
     /// messages of every level.
@@ -612,11 +612,12 @@ impl fmt::Debug for LogSetting {
 /// Configures how FFmpeg's internal logging is handled.
 ///
 /// FFmpeg emits diagnostics (e.g. `Estimating duration from bitrate, this may be inaccurate`)
-/// through a global logger that, by default, writes every message of [`LogLevel::Info`] or
-/// more severe to stderr. This function overrides that global state:
+/// through a global logger. This crate defaults to [`LogLevel::Quiet`], so FFmpeg is silent
+/// unless the caller raises the threshold. This function overrides that global state:
 ///
 /// - [`LogSetting::Level`] keeps the default stderr handler but changes the threshold. Use
-///   [`LogLevel::Quiet`] to silence FFmpeg entirely, or [`LogLevel::Error`] to keep only errors.
+///   [`LogLevel::Info`] to restore FFmpeg's own default, or [`LogLevel::Error`] to keep only
+///   errors.
 /// - [`LogSetting::Callback`] installs a custom handler that receives every message as a
 ///   [`LogMessage`], letting the caller forward them to their own logging system.
 ///

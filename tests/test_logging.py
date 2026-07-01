@@ -14,9 +14,9 @@ import codecpod
 
 @pytest.fixture(autouse=True)
 def restore_logging():
-    """Reset the global logger back to FFmpeg's default after each test."""
+    """Reset the global logger back to the crate default (quiet) after each test."""
     yield
-    codecpod.set_log("info")
+    codecpod.set_log("quiet")
 
 
 def _decode_roundtrip():

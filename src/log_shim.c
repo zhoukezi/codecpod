@@ -117,3 +117,7 @@ void codecpod_log_restore(int level) {
     av_log_set_level(level);
     av_log_set_callback(av_log_default_callback);
 }
+
+__attribute__((constructor)) static void codecpod_log_default_quiet(void) {
+    av_log_set_level(AV_LOG_QUIET);
+}

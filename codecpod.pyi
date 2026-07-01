@@ -288,9 +288,9 @@ def set_log(handler: LogLevel | LogCallback) -> None:
     """Configure how FFmpeg's internal log output is handled.
 
     FFmpeg emits diagnostics (e.g. ``Estimating duration from bitrate, this may be
-    inaccurate``) through a process-global logger that, by default, writes every message of
-    level ``"info"`` or more severe to stderr. This function overrides that global state; the
-    last call wins across the whole process.
+    inaccurate``) through a process-global logger. This crate defaults to ``"quiet"``, so
+    FFmpeg is silent unless the caller raises the threshold. This function overrides that
+    global state; the last call wins across the whole process.
 
     Args:
         handler: Either a log level string, or a callable.
@@ -298,7 +298,7 @@ def set_log(handler: LogLevel | LogCallback) -> None:
             A level string is one of ``"quiet"``, ``"panic"``, ``"fatal"``, ``"error"``,
             ``"warning"``, ``"info"``, ``"verbose"``, ``"debug"``, ``"trace"`` (ordered from
             least to most verbose). Messages at or below that level keep going to stderr; more
-            verbose ones are dropped. Use ``"quiet"`` to silence FFmpeg entirely.
+            verbose ones are dropped. Use ``"info"`` to restore FFmpeg's own default.
 
             A callable ``handler(level, message)`` diverts all output away from stderr: it is
             invoked once per complete log line with the level string and the formatted message
