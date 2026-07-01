@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)publish a release for, e.g. v0.2.2"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  github-release:
+    name: Publish GitHub release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required to create the release
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            tag="${{ inputs.tag }}"
+          else
+            tag="${GITHUB_REF_NAME}"
+          fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Extract release notes from CHANGELOG.md
+        id: notes
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          # Pull the section for this version out of CHANGELOG.md. The heading
+          # looks like "## [0.2.2] - 2026-07-01"; capture everything up to the
+          # next "## " heading (or EOF), then strip the heading and link refs.
+          notes=$(awk -v ver="$VERSION" '
+            $0 ~ "^## \\[" ver "\\]" { grab = 1; next }
+            grab && /^## / { exit }
+            grab && /^\[.+\]: / { next }
+            grab { print }
+          ' CHANGELOG.md)
+          # Trim leading/trailing blank lines.
+          notes=$(printf '%s\n' "$notes" | sed -e '/./,$!d' | tac | sed -e '/./,$!d' | tac)
+          if [ -z "$notes" ]; then
+            echo "No CHANGELOG.md section found for version ${VERSION}" >&2
+            exit 1
+          fi
+          {
+            echo "body<<__NOTES_EOF__"
+            echo "$notes"
+            echo "__NOTES_EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.tag }}
+          body: ${{ steps.notes.outputs.body }}
+          prerelease: ${{ contains(steps.tag.outputs.version, '-') }}
