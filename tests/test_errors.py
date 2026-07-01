@@ -57,13 +57,17 @@ def test_save_rejects_non_codec(tmp_path):
 def test_save_rejects_unsupported_dtype(tmp_path):
     sig = (tone() * 100).astype(np.int8)
     with pytest.raises(TypeError):
-        codecpod.save(tmp_path / "out.wav", sig, DEFAULT_RATE, codec=codecpod.Wav("i16"))
+        codecpod.save(
+            tmp_path / "out.wav", sig, DEFAULT_RATE, codec=codecpod.Wav("i16")
+        )
 
 
 def test_save_rejects_3d_array(tmp_path):
     sig = np.zeros((2, 2, 10), dtype=np.float32)
     with pytest.raises(ValueError):
-        codecpod.save(tmp_path / "out.wav", sig, DEFAULT_RATE, codec=codecpod.Wav("f32"))
+        codecpod.save(
+            tmp_path / "out.wav", sig, DEFAULT_RATE, codec=codecpod.Wav("f32")
+        )
 
 
 def test_opus_unsupported_sample_rate(tmp_path):

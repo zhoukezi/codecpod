@@ -1,10 +1,9 @@
 """Encode -> decode round-trip checks for every supported encoder."""
 
-import numpy as np
 import pytest
+from conftest import DEFAULT_RATE, assert_lossless, assert_tone_preserved, tone
 
 import codecpod
-from conftest import DEFAULT_RATE, assert_lossless, assert_tone_preserved, tone
 
 WAV_FORMATS = ["u8", "i16", "i24", "i32", "f32", "f64"]
 AIFF_FORMATS = ["i8", "i16", "i24", "i32", "f32", "f64"]
