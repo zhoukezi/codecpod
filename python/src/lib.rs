@@ -1,6 +1,7 @@
 use codecpod::{
     AiffSampleFormat, AlacBitsPerSample, ChannelLayout, Codec, FlacBitsPerSample, LoadOptions,
-    OpusApplication, OpusFrameDuration, OpusVbrMode, SampleData, SaveOptions, WavSampleFormat,
+    LogLevel, LogMessage, LogSetting, OpusApplication, OpusFrameDuration, OpusVbrMode, SampleData,
+    SaveOptions, WavSampleFormat,
 };
 use numpy::ndarray::Array2;
 use numpy::{IntoPyArray, PyArrayDyn, PyArrayMethods};
@@ -866,6 +867,91 @@ fn save_bytes<'py>(
     Ok(PyBytes::new(py, &bytes))
 }
 
+fn str_to_log_level(s: &str) -> PyResult<LogLevel> {
+    Ok(match s {
+        "quiet" => LogLevel::Quiet,
+        "panic" => LogLevel::Panic,
+        "fatal" => LogLevel::Fatal,
+        "error" => LogLevel::Error,
+        "warning" => LogLevel::Warning,
+        "info" => LogLevel::Info,
+        "verbose" => LogLevel::Verbose,
+        "debug" => LogLevel::Debug,
+        "trace" => LogLevel::Trace,
+        other => {
+            return Err(PyValueError::new_err(format!(
+                "invalid log level {other:?}; expected one of: quiet, panic, fatal, error, \
+                 warning, info, verbose, debug, trace"
+            )));
+        }
+    })
+}
+
+fn log_level_to_str(level: LogLevel) -> &'static str {
+    match level {
+        LogLevel::Quiet => "quiet",
+        LogLevel::Panic => "panic",
+        LogLevel::Fatal => "fatal",
+        LogLevel::Error => "error",
+        LogLevel::Warning => "warning",
+        LogLevel::Info => "info",
+        LogLevel::Verbose => "verbose",
+        LogLevel::Debug => "debug",
+        LogLevel::Trace => "trace",
+    }
+}
+
+/// Configure how FFmpeg's internal log output is handled.
+///
+/// FFmpeg emits diagnostics (e.g. ``Estimating duration from bitrate, this may be
+/// inaccurate``) through a process-global logger that, by default, writes every message of
+/// level ``"info"`` or more severe to stderr. This function overrides that global state; the
+/// last call wins across the whole process.
+///
+/// Args:
+///     handler: Either a log level string, or a callable.
+///
+///         A level string is one of ``"quiet"``, ``"panic"``, ``"fatal"``, ``"error"``,
+///         ``"warning"``, ``"info"``, ``"verbose"``, ``"debug"``, ``"trace"`` (ordered from
+///         least to most verbose). Messages at or below that level keep going to stderr;
+///         more verbose ones are dropped. Use ``"quiet"`` to silence FFmpeg entirely.
+///
+///         A callable ``handler(level, message)`` diverts all output away from stderr: it is
+///         invoked once per complete log line with the level string and the formatted message
+///         text (the same text FFmpeg's default handler would print, including any
+///         ``[component @ 0x…]`` prefix, without the trailing newline). It receives messages
+///         of every level regardless; filter inside the callable if needed. It may be called
+///         from any thread, including internal codec worker threads.
+///
+/// Raises:
+///     ValueError: If ``handler`` is a string that is not a valid level.
+///     TypeError: If ``handler`` is neither a string nor callable.
+#[pyfunction]
+fn set_log(handler: &Bound<'_, PyAny>) -> PyResult<()> {
+    if let Ok(s) = handler.extract::<String>() {
+        codecpod::log_set(LogSetting::Level(str_to_log_level(&s)?));
+        return Ok(());
+    }
+    if !handler.is_callable() {
+        return Err(PyTypeError::new_err(
+            "handler must be a log level string or a callable(level, message)",
+        ));
+    }
+    let callable: Py<PyAny> = handler.clone().unbind();
+    codecpod::log_set(LogSetting::Callback(Box::new(move |msg: &LogMessage| {
+        let level = log_level_to_str(msg.level);
+        let text = msg.text.clone();
+        Python::attach(|py| {
+            // A logging callback must never let its own failure escape into FFmpeg; report the
+            // error through Python's hook and carry on.
+            if let Err(e) = callable.call1(py, (level, text)) {
+                e.write_unraisable(py, Some(callable.bind(py)));
+            }
+        });
+    })));
+    Ok(())
+}
+
 // Resolve the `data` argument (NumPy array or AudioBuffer) plus the sample-rate /
 // channels_first options into a codecpod::AudioBuffer, shared by save / save_bytes.
 fn build_audio_buffer(
@@ -923,5 +1009,6 @@ fn init(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(load, m)?)?;
     m.add_function(wrap_pyfunction!(save, m)?)?;
     m.add_function(wrap_pyfunction!(save_bytes, m)?)?;
+    m.add_function(wrap_pyfunction!(set_log, m)?)?;
     Ok(())
 }

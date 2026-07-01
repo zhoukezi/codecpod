@@ -1,5 +1,5 @@
 import os
-from typing import Literal
+from typing import Callable, Literal
 
 import numpy as np
 import numpy.typing as npt
@@ -8,6 +8,10 @@ WavSampleFormat = Literal["u8", "i16", "i24", "i32", "f32", "f64"]
 AiffSampleFormat = Literal["i8", "i16", "i24", "i32", "f32", "f64"]
 OpusApplication = Literal["voip", "audio", "lowdelay"]
 OpusVbrMode = Literal["off", "on", "constrained"]
+LogLevel = Literal[
+    "quiet", "panic", "fatal", "error", "warning", "info", "verbose", "debug", "trace"
+]
+LogCallback = Callable[[LogLevel, str], object]
 StrPath = str | os.PathLike[str]
 
 class CodecpodError(Exception):
@@ -278,4 +282,32 @@ def save_bytes(
         CodecpodError: If encoding fails (e.g. an unsupported sample rate for the codec).
         ValueError: If ``sample_rate`` is missing for a NumPy array, or ``channels_first`` is
             set together with an :class:`AudioBuffer`.
+    """
+
+def set_log(handler: LogLevel | LogCallback) -> None:
+    """Configure how FFmpeg's internal log output is handled.
+
+    FFmpeg emits diagnostics (e.g. ``Estimating duration from bitrate, this may be
+    inaccurate``) through a process-global logger that, by default, writes every message of
+    level ``"info"`` or more severe to stderr. This function overrides that global state; the
+    last call wins across the whole process.
+
+    Args:
+        handler: Either a log level string, or a callable.
+
+            A level string is one of ``"quiet"``, ``"panic"``, ``"fatal"``, ``"error"``,
+            ``"warning"``, ``"info"``, ``"verbose"``, ``"debug"``, ``"trace"`` (ordered from
+            least to most verbose). Messages at or below that level keep going to stderr; more
+            verbose ones are dropped. Use ``"quiet"`` to silence FFmpeg entirely.
+
+            A callable ``handler(level, message)`` diverts all output away from stderr: it is
+            invoked once per complete log line with the level string and the formatted message
+            text (the same text FFmpeg's default handler would print, including any
+            ``[component @ 0x…]`` prefix, without the trailing newline). It receives messages of
+            every level regardless; filter inside the callable if needed. It may be called from
+            any thread, including internal codec worker threads.
+
+    Raises:
+        ValueError: If ``handler`` is a string that is not a valid level.
+        TypeError: If ``handler`` is neither a string nor callable.
     """

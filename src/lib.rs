@@ -32,6 +32,7 @@
 #![warn(rust_2024_compatibility)]
 
 use std::ffi::CStr;
+use std::fmt;
 use std::path::Path;
 
 pub use error::{Error, FFmpegError};
@@ -48,6 +49,8 @@ mod util;
 mod encoder;
 #[cfg_attr(docsrs, path = "loader_stub.rs")]
 mod loader;
+#[cfg_attr(docsrs, path = "log_stub.rs")]
+mod log;
 
 /// Decoded audio samples.
 #[derive(Debug, Clone)]
@@ -500,4 +503,125 @@ pub fn save_bytes(buf: &AudioBuffer, opts: &SaveOptions) -> Result<Vec<u8>, Erro
         return Err(Error::InvalidArg("sample_rate must be > 0 when set"));
     }
     encoder::save_bytes(buf, opts)
+}
+
+/// Verbosity level for FFmpeg's internal logging, ordered from least to most verbose.
+///
+/// The variants mirror FFmpeg's `AV_LOG_*` constants. When used with
+/// [`LogSetting::Level`], messages at or below the chosen level are emitted through
+/// FFmpeg's default handler (which writes to stderr); more verbose messages are dropped.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum LogLevel {
+    /// Print no output at all.
+    Quiet,
+    /// Something went so wrong that the process cannot continue.
+    Panic,
+    /// A fatal error, after which the affected component can no longer function.
+    Fatal,
+    /// An error, after which the operation cannot be recovered.
+    Error,
+    /// Something does not look correct, though the operation may still succeed.
+    Warning,
+    /// Standard informational messages. This is FFmpeg's default.
+    Info,
+    /// More verbose informational messages.
+    Verbose,
+    /// Messages useful for debugging.
+    Debug,
+    /// Extremely verbose tracing output.
+    Trace,
+}
+
+impl LogLevel {
+    /// Maps this level to the corresponding FFmpeg `AV_LOG_*` integer constant.
+    #[cfg(not(docsrs))]
+    fn to_av(self) -> i32 {
+        match self {
+            Self::Quiet => sys::AV_LOG_QUIET,
+            Self::Panic => sys::AV_LOG_PANIC as i32,
+            Self::Fatal => sys::AV_LOG_FATAL as i32,
+            Self::Error => sys::AV_LOG_ERROR as i32,
+            Self::Warning => sys::AV_LOG_WARNING as i32,
+            Self::Info => sys::AV_LOG_INFO as i32,
+            Self::Verbose => sys::AV_LOG_VERBOSE as i32,
+            Self::Debug => sys::AV_LOG_DEBUG as i32,
+            Self::Trace => sys::AV_LOG_TRACE as i32,
+        }
+    }
+
+    /// Maps an FFmpeg `AV_LOG_*` integer constant to the closest [`LogLevel`].
+    ///
+    /// FFmpeg passes the raw level of each message to a custom callback. Values that fall
+    /// between two named constants are rounded up to the more verbose (less severe) level.
+    #[cfg(not(docsrs))]
+    fn from_av(level: i32) -> Self {
+        match level {
+            l if l <= sys::AV_LOG_QUIET => Self::Quiet,
+            l if l <= sys::AV_LOG_PANIC as i32 => Self::Panic,
+            l if l <= sys::AV_LOG_FATAL as i32 => Self::Fatal,
+            l if l <= sys::AV_LOG_ERROR as i32 => Self::Error,
+            l if l <= sys::AV_LOG_WARNING as i32 => Self::Warning,
+            l if l <= sys::AV_LOG_INFO as i32 => Self::Info,
+            l if l <= sys::AV_LOG_VERBOSE as i32 => Self::Verbose,
+            l if l <= sys::AV_LOG_DEBUG as i32 => Self::Debug,
+            _ => Self::Trace,
+        }
+    }
+}
+
+/// A single formatted log message delivered to a [`LogCallback`].
+#[derive(Debug, Clone)]
+pub struct LogMessage {
+    /// Severity of the message.
+    pub level: LogLevel,
+    /// The message text, already formatted the same way FFmpeg's default handler would
+    /// render it (including any `[component @ 0x…]` prefix), with the trailing newline removed.
+    ///
+    /// A single logical line longer than FFmpeg's internal line buffer (1024 bytes) is
+    /// delivered as several messages, matching how FFmpeg's default handler splits it; only
+    /// the first such fragment carries the `[component @ 0x…]` prefix.
+    pub text: String,
+}
+
+/// A callback that receives FFmpeg log messages.
+///
+/// The callback must be `Send + Sync` because FFmpeg may log from any thread, including
+/// internal codec worker threads. It receives every message regardless of the level set
+/// via [`LogLevel`]; filter inside the callback if needed.
+pub type LogCallback = Box<dyn Fn(&LogMessage) + Send + Sync + 'static>;
+
+/// Controls how FFmpeg's internal log output is handled, via [`log_set`].
+pub enum LogSetting {
+    /// Route messages through FFmpeg's default stderr handler, keeping only those at or
+    /// below the given [`LogLevel`]. This is the initial behavior, with [`LogLevel::Info`].
+    Level(LogLevel),
+    /// Divert all messages to a custom callback instead of stderr. The callback receives
+    /// messages of every level.
+    Callback(LogCallback),
+}
+
+impl fmt::Debug for LogSetting {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Level(level) => f.debug_tuple("Level").field(level).finish(),
+            Self::Callback(_) => f.debug_tuple("Callback").field(&"<callback>").finish(),
+        }
+    }
+}
+
+/// Configures how FFmpeg's internal logging is handled.
+///
+/// FFmpeg emits diagnostics (e.g. `Estimating duration from bitrate, this may be inaccurate`)
+/// through a global logger that, by default, writes every message of [`LogLevel::Info`] or
+/// more severe to stderr. This function overrides that global state:
+///
+/// - [`LogSetting::Level`] keeps the default stderr handler but changes the threshold. Use
+///   [`LogLevel::Quiet`] to silence FFmpeg entirely, or [`LogLevel::Error`] to keep only errors.
+/// - [`LogSetting::Callback`] installs a custom handler that receives every message as a
+///   [`LogMessage`], letting the caller forward them to their own logging system.
+///
+/// The setting is process-global (FFmpeg keeps a single logger), so the last call wins across
+/// all threads and all bindings layered on top of it.
+pub fn log_set(setting: LogSetting) {
+    log::set(setting);
 }
